@@ -3,20 +3,16 @@ import React, {
   useEffect,
   useRef,
   useMemo,
+  useCallback,
   useState,
   useImperativeHandle,
 } from 'react';
 import * as Tone from 'tone';
+import { EventEmitter } from 'events';
 
-type GenericInstrumentTriggerFunc = (
-  ...params: Parameters<Tone.Synth['triggerAttackRelease']>
-) => void;
+import { useInterceptedRef } from './interceptedRef';
 
-type InstrumentLike = {
-  triggerAttackRelease: GenericInstrumentTriggerFunc;
-};
-
-const RackTargetContext = React.createContext<Tone.InputNode | null>(null);
+const RackTargetContext = React.createContext<Tone.InputNode>(Tone.Destination);
 
 function useRackConnection(node?: Tone.ToneAudioNode | null, prop?: string) {
   const target = useContext(RackTargetContext);
@@ -164,6 +160,122 @@ function createRackable<
   return React.forwardRef(componentFunc);
 }
 
+const GLOBAL_TRANSPORT_EVENTS = new EventEmitter();
+interface TransportNoteEvent {
+  time: number;
+  value: unknown;
+}
+
+type RackableInstrumentProps<NodeOptions> = RackableProps<NodeOptions> & {
+  notes?: string;
+  duration?: string | number;
+  velocity?: number;
+};
+
+function parseEventDuration<DefaultType>(
+  val: unknown,
+  defaultValue: DefaultType
+) {
+  switch (typeof val) {
+    case 'number':
+      return val;
+    case 'string':
+      return val;
+    default:
+      return defaultValue; // @todo report
+  }
+}
+
+function parseEventVelocity<DefaultType>(
+  val: unknown,
+  defaultValue: DefaultType
+) {
+  switch (typeof val) {
+    case 'number':
+      return val;
+    default:
+      return defaultValue; // @todo report
+  }
+}
+
+type GenericInstrumentTriggerFunc = (
+  ...params: Parameters<Tone.Synth['triggerAttackRelease']>
+) => void;
+
+interface InstrumentLike extends Tone.ToneAudioNode {
+  triggerAttackRelease: GenericInstrumentTriggerFunc;
+}
+
+export function createRackableInstrument<
+  NodeOptions extends Tone.ToneAudioNodeOptions,
+  ResultType extends InstrumentLike = InstrumentLike
+>(
+  nodeClass: { new (options?: Partial<NodeOptions>): ResultType },
+  init?: (node: ResultType) => void
+) {
+  const InstrumentComponent = createRackable<NodeOptions, ResultType>(
+    nodeClass,
+    init
+  );
+
+  const componentFunc: React.ForwardRefRenderFunction<
+    ResultType,
+    React.PropsWithChildren<RackableInstrumentProps<NodeOptions>>
+  > = (props, innerRef) => {
+    const firstNoteTopicRef = useRef(props.notes);
+    const [ourRef, innerRefWrapper] = useInterceptedRef(innerRef);
+
+    const durationRef = useRef(props.duration);
+    durationRef.current = props.duration;
+    const velocityRef = useRef(props.velocity);
+    velocityRef.current = props.velocity;
+
+    // listen for note events coming down from the transport
+    useEffect(() => {
+      const noteTopic = firstNoteTopicRef.current;
+      const noteListener = ({ time, value }: TransportNoteEvent) => {
+        if (time === undefined || !ourRef.current) {
+          return;
+        }
+
+        if (typeof value === 'string') {
+          // simple string notes, use prop-configured duration/velocity
+          ourRef.current.triggerAttackRelease(
+            value,
+            durationRef.current || 0.1, // @todo report?
+            time,
+            velocityRef.current
+          );
+        } else if (typeof value === 'object' && value) {
+          // object notes, use specified values or fall back to prop-configured
+          // duration/velocity for unspecified ones
+          const { note, duration, velocity } = value as Record<string, unknown>;
+          ourRef.current.triggerAttackRelease(
+            String(note), // @todo better
+            duration === undefined
+              ? durationRef.current || 0.1 // @todo report
+              : parseEventDuration(duration, 0.1),
+            time,
+            velocity === undefined
+              ? velocityRef.current
+              : parseEventVelocity(velocity, undefined)
+          );
+        }
+      };
+
+      GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
+      return () => {
+        GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
+      };
+    }, [ourRef]);
+
+    // @todo props seem to give trouble to type checker
+    return <InstrumentComponent {...(props as any)} ref={innerRefWrapper} />;
+  };
+
+  return React.forwardRef(componentFunc);
+}
+
 const RDistortion = createRackable(Tone.Distortion);
 const RFeedbackDelay = createRackable(Tone.FeedbackDelay);
 const RFilter = createRackable(Tone.Filter);
@@ -171,9 +283,9 @@ const RLFO = createRackable<Tone.LFOOptions, Tone.LFO>(Tone.LFO, (lfo) => {
   lfo.start();
 });
 const RReverb = createRackable(Tone.Reverb);
-const RPolySynth = createRackable<Tone.PolySynthOptions<Tone.MonoSynth>>(
-  Tone.PolySynth
-);
+const RPolySynth = createRackableInstrument<
+  Tone.PolySynthOptions<Tone.MonoSynth>
+>(Tone.PolySynth);
 
 const Ambience: React.FC = ({ children }) => {
   return (
@@ -254,6 +366,7 @@ const TestPlayer: React.FC = () => {
 const BaseSynth: React.FC = ({ children }) => {
   const rawSynth = (
     <RPolySynth
+      notes="testPattern"
       voice={Tone.MonoSynth}
       volume={-20}
       options={{
