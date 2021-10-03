@@ -10,8 +10,6 @@ import React, {
 import * as Tone from 'tone';
 import { EventEmitter } from 'events';
 
-import { useInterceptedRef } from './interceptedRef';
-
 const RackTargetContext = React.createContext<Tone.InputNode>(Tone.Destination);
 
 function useRackConnection(node?: Tone.ToneAudioNode | null, prop?: string) {
@@ -226,21 +224,17 @@ interface InstrumentLike extends Tone.ToneAudioNode {
 export function createRackableInstrument<
   NodeOptions extends Tone.ToneAudioNodeOptions,
   ResultType extends InstrumentLike = InstrumentLike
->(
-  nodeClass: { new (options?: Partial<NodeOptions>): ResultType },
-  init?: (node: ResultType) => void
-) {
-  const InstrumentComponent = createRackable<NodeOptions, ResultType>(
-    nodeClass,
-    init
-  );
-
+>(nodeClass: RackableClass<NodeOptions, ResultType>) {
   const componentFunc: React.ForwardRefRenderFunction<
     ResultType,
     React.PropsWithChildren<RackableInstrumentProps<NodeOptions>>
   > = (props, innerRef) => {
+    const instrNode = useRackableNode(nodeClass, props, innerRef);
+
+    // connect/disconnect the node to parent
+    useRackConnection(instrNode, props.connect);
+
     const firstNoteTopicRef = useRef(props.notes);
-    const [ourRef, innerRefWrapper] = useInterceptedRef(innerRef);
 
     const durationRef = useRef(props.duration);
     durationRef.current = props.duration;
@@ -251,13 +245,13 @@ export function createRackableInstrument<
     useEffect(() => {
       const noteTopic = firstNoteTopicRef.current;
       const noteListener = ({ time, value }: TransportNoteEvent) => {
-        if (time === undefined || !ourRef.current) {
+        if (time === undefined) {
           return;
         }
 
         if (typeof value === 'string') {
           // simple string notes, use prop-configured duration/velocity
-          ourRef.current.triggerAttackRelease(
+          instrNode.triggerAttackRelease(
             value,
             durationRef.current || 0.1, // @todo report?
             time,
@@ -267,7 +261,7 @@ export function createRackableInstrument<
           // object notes, use specified values or fall back to prop-configured
           // duration/velocity for unspecified ones
           const { note, duration, velocity } = value as Record<string, unknown>;
-          ourRef.current.triggerAttackRelease(
+          instrNode.triggerAttackRelease(
             String(note), // @todo better
             duration === undefined
               ? durationRef.current || 0.1 // @todo report
@@ -284,10 +278,13 @@ export function createRackableInstrument<
       return () => {
         GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
       };
-    }, [ourRef]);
+    }, [instrNode]);
 
-    // @todo props seem to give trouble to type checker
-    return <InstrumentComponent {...(props as any)} ref={innerRefWrapper} />;
+    return (
+      <RackTargetContext.Provider value={instrNode}>
+        {props.children}
+      </RackTargetContext.Provider>
+    );
   };
 
   return React.forwardRef(componentFunc);
