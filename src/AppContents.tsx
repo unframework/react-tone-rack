@@ -46,6 +46,15 @@ export const AppContents: React.FC = () => {
     const filter = new Tone.Filter({ type: 'lowpass', Q: 12 });
     lfoRef.current = new Tone.LFO('13m', 300, 2200).connect(filter.frequency);
 
+    const synthOut = new Tone.Channel({ channelCount: 2 }); // must specify # of channels per ToneJS#941
+    synth.chain(dist, filter, synthOut);
+    // synth.chain(chorus, Tone.Destination);
+
+    synthOut.send('synth');
+
+    const ambienceIn = new Tone.Channel({ channelCount: 2 });
+    const ambienceOut = new Tone.Channel({ channelCount: 2 });
+
     const delay = new Tone.FeedbackDelay('4t', 0.65);
     const delayFilter = new Tone.Filter({
       type: 'bandpass',
@@ -61,15 +70,15 @@ export const AppContents: React.FC = () => {
     });
 
     const rev = new Tone.Reverb({ decay: 12, preDelay: 0.01, wet: 0.35 });
+    ambienceIn.chain(rev, ambienceOut);
 
     const rev2 = new Tone.Reverb({ decay: 4, preDelay: 0.01, wet: 0.45 });
+    ambienceIn.chain(delay, delayFilter, rev2);
+    ambienceIn.chain(delay2, delay2Filter, rev2);
+    rev2.chain(ambienceOut);
 
-    // synth.chain(chorus, Tone.Destination);
-    synth.chain(dist, filter, rev);
-    filter.chain(delay, delayFilter, rev2);
-    filter.chain(delay2, delay2Filter, rev2);
-    rev.chain(Tone.Destination);
-    rev2.chain(Tone.Destination);
+    ambienceIn.receive('synth');
+    ambienceOut.connect(Tone.Destination);
 
     function chord(
       instr: InstrumentLike,
