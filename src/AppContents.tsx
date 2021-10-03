@@ -107,55 +107,55 @@ export const RackChannel: React.FC<{ send?: string; receive?: string }> = ({
 type FilteredKeys<T, U> = { [P in keyof T]: T[P] extends U ? T[P] : never };
 type ReverbParams = FilteredKeys<Tone.Reverb, Tone.Signal<any>>;
 
-function Rack<
+function createRackable<
   NodeClass extends Tone.ToneAudioNode<NodeOptions>,
   NodeOptions extends Tone.ToneAudioNodeOptions
->({
-  type,
-  params,
-  children,
-}: React.PropsWithChildren<{
-  type: { new (options?: Partial<NodeOptions>): NodeClass };
-  params?: Partial<NodeOptions>;
-}>) {
-  const firstTypeRef = useRef(type);
-  const firstParamsRef = useRef(params);
+>(nodeClass: { new (options?: Partial<NodeOptions>): NodeClass }) {
+  const component: React.FC<Partial<NodeOptions>> = (props) => {
+    const firstParamsRef = useRef(props);
 
-  const node = useMemo(() => {
-    return new firstTypeRef.current(firstParamsRef.current);
-  }, []);
+    const node = useMemo(() => {
+      return new nodeClass(firstParamsRef.current);
+    }, []);
 
-  // always clean up on unmount
-  useEffect(() => {
-    return () => {
-      node.disconnect();
-    };
-  }, [node]);
+    // always clean up on unmount
+    useEffect(() => {
+      return () => {
+        node.disconnect();
+      };
+    }, [node]);
 
-  useRackConnection(node);
+    useRackConnection(node);
 
-  return (
-    <RackTargetContext.Provider value={node}>
-      {children}
-    </RackTargetContext.Provider>
-  );
+    return (
+      <RackTargetContext.Provider value={node}>
+        {props.children}
+      </RackTargetContext.Provider>
+    );
+  };
+
+  return component;
 }
+
+const RFeedbackDelay = createRackable(Tone.FeedbackDelay);
+const RFilter = createRackable(Tone.Filter);
+const RReverb = createRackable(Tone.Reverb);
 
 const Ambience: React.FC = ({ children }) => {
   return (
     <>
       <RackChannel send="ambienceIn">{children}</RackChannel>
-      <Rack type={Tone.Reverb}>
+      <RReverb>
         <RackChannel receive="ambienceIn" />
-      </Rack>
-      <Rack type={Tone.Reverb}>
-        <Rack type={Tone.FeedbackDelay}>
+      </RReverb>
+      <RReverb>
+        <RFeedbackDelay>
           <RackChannel receive="ambienceIn" />
-        </Rack>
-        <Rack type={Tone.FeedbackDelay}>
+        </RFeedbackDelay>
+        <RFeedbackDelay>
           <RackChannel receive="ambienceIn" />
-        </Rack>
-      </Rack>
+        </RFeedbackDelay>
+      </RReverb>
     </>
   );
 };
@@ -176,16 +176,9 @@ const TestOsc: React.FC = () => {
 const TestMain: React.FC = () => {
   return (
     <RackDestination>
-      <Rack
-        type={Tone.Filter}
-        params={{
-          type: 'bandpass',
-          frequency: 'C2',
-          Q: 0.5,
-        }}
-      >
+      <RFilter type="bandpass" frequency="C6" Q={1}>
         <TestOsc />
-      </Rack>
+      </RFilter>
     </RackDestination>
   );
 };
