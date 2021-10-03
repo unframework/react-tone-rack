@@ -145,10 +145,38 @@ type RackableProps<NodeOptions> = Partial<NodeOptions> & { connect?: string };
 function createRackable<
   NodeOptions extends Tone.ToneAudioNodeOptions,
   ResultType extends Tone.ToneAudioNode = Tone.ToneAudioNode
->(
-  nodeClass: RackableClass<NodeOptions, ResultType>,
-  init?: (node: ResultType) => void
-) {
+>(nodeClass: RackableClass<NodeOptions, ResultType>) {
+  const componentFunc: React.ForwardRefRenderFunction<
+    ResultType,
+    React.PropsWithChildren<RackableProps<NodeOptions>>
+  > = (props, innerRef) => {
+    const node = useRackableNode(nodeClass, props, innerRef);
+
+    // connect/disconnect the node to parent
+    useRackConnection(node, props.connect);
+
+    return (
+      <RackTargetContext.Provider value={node}>
+        {props.children}
+      </RackTargetContext.Provider>
+    );
+  };
+
+  return React.forwardRef(componentFunc);
+}
+
+interface SourceLike extends Tone.ToneAudioNode {
+  start: (time?: number) => void;
+  stop: () => void;
+  sync: () => void;
+  unsync: () => void;
+}
+
+// nodes synced to transport for start/stop and BPM @todo rename from "source"?
+function createRackableSource<
+  NodeOptions extends Tone.ToneAudioNodeOptions,
+  ResultType extends SourceLike = SourceLike
+>(nodeClass: RackableClass<NodeOptions, ResultType>) {
   const componentFunc: React.ForwardRefRenderFunction<
     ResultType,
     React.PropsWithChildren<RackableProps<NodeOptions>>
@@ -157,10 +185,14 @@ function createRackable<
 
     // @todo remove
     useEffect(() => {
-      if (init) {
-        init(node);
-      }
-    }, []);
+      node.sync();
+      node.start(0); // after syncing, schedule to start
+
+      return () => {
+        node.unsync();
+        node.stop(); // immediately stop
+      };
+    }, [node]);
 
     // connect/disconnect the node to parent
     useRackConnection(node, props.connect);
@@ -213,12 +245,15 @@ function parseEventVelocity<DefaultType>(
   }
 }
 
-type GenericInstrumentTriggerFunc = (
-  ...params: Parameters<Tone.Synth['triggerAttackRelease']>
-) => void;
-
 interface InstrumentLike extends Tone.ToneAudioNode {
-  triggerAttackRelease: GenericInstrumentTriggerFunc;
+  // expect a call signature similar to e.g. synth
+  triggerAttackRelease: (
+    ...params: Parameters<Tone.Synth['triggerAttackRelease']>
+  ) => void;
+
+  // also need to sync BPM for duration values
+  sync: () => void;
+  unsync: () => void;
 }
 
 export function createRackableInstrument<
@@ -274,8 +309,13 @@ export function createRackableInstrument<
         }
       };
 
+      // listen for notes and sync with timeline
       GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
+      instrNode.sync();
+
       return () => {
+        // unsync and stop listening for notes
+        instrNode.unsync();
         GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
       };
     }, [instrNode]);
@@ -305,9 +345,7 @@ function useNoteEmitter(noteTopic: string) {
 const RDistortion = createRackable(Tone.Distortion);
 const RFeedbackDelay = createRackable(Tone.FeedbackDelay);
 const RFilter = createRackable(Tone.Filter);
-const RLFO = createRackable<Tone.LFOOptions, Tone.LFO>(Tone.LFO, (lfo) => {
-  lfo.start(); // @todo use sync()/unsync()
-});
+const RLFO = createRackableSource<Tone.LFOOptions, Tone.LFO>(Tone.LFO);
 const RReverb = createRackable(Tone.Reverb);
 const RPolySynth = createRackableInstrument<
   Tone.PolySynthOptions<Tone.MonoSynth>
@@ -450,8 +488,10 @@ export const AppContents: React.FC = () => {
           type="button"
           onClick={() => {
             Tone.start().then(() => {
-              Tone.Transport.start();
               setStarted(true);
+
+              // start main timeline after everything renders
+              Tone.Transport.start('+0.1');
             });
           }}
         >
