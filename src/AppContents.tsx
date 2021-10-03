@@ -119,9 +119,6 @@ export const RackChannel: React.FC<{ send?: string; receive?: string }> = ({
   );
 };
 
-type FilteredKeys<T, U> = { [P in keyof T]: T[P] extends U ? T[P] : never };
-type ReverbParams = FilteredKeys<Tone.Reverb, Tone.Signal<any>>;
-
 function createRackable<
   NodeOptions extends Tone.ToneAudioNodeOptions,
   ResultType extends Tone.ToneAudioNode = Tone.ToneAudioNode
@@ -142,13 +139,7 @@ function createRackable<
       return result;
     }, []);
 
-    // always clean up on unmount
-    useEffect(() => {
-      return () => {
-        node.disconnect();
-      };
-    }, [node]);
-
+    // connect/disconnect the node to parent
     useRackConnection(node, props.connect);
 
     return (
