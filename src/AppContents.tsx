@@ -123,9 +123,8 @@ type FilteredKeys<T, U> = { [P in keyof T]: T[P] extends U ? T[P] : never };
 type ReverbParams = FilteredKeys<Tone.Reverb, Tone.Signal<any>>;
 
 function createRackable<
-  NodeClass extends Tone.ToneAudioNode<NodeOptions>,
   NodeOptions extends Tone.ToneAudioNodeOptions
->(nodeClass: { new (options?: Partial<NodeOptions>): NodeClass }) {
+>(nodeClass: { new (options?: Partial<NodeOptions>): Tone.ToneAudioNode }) {
   const component: React.FC<Partial<NodeOptions> & { connect?: string }> = (
     props
   ) => {
@@ -154,10 +153,14 @@ function createRackable<
   return component;
 }
 
+const RDistortion = createRackable(Tone.Distortion);
 const RFeedbackDelay = createRackable(Tone.FeedbackDelay);
 const RFilter = createRackable(Tone.Filter);
 const RLFO = createRackable(Tone.LFO);
 const RReverb = createRackable(Tone.Reverb);
+const RPolySynth = createRackable<Tone.PolySynthOptions<Tone.MonoSynth>>(
+  Tone.PolySynth
+);
 
 const Ambience: React.FC = ({ children }) => {
   return (
@@ -197,56 +200,16 @@ const TestOsc: React.FC = () => {
   return null;
 };
 
-const TestMain: React.FC = () => {
-  return (
-    <RackDestination>
-      <RFilter type="bandpass" frequency="C6" Q={1}>
-        <TestOsc />
-      </RFilter>
-    </RackDestination>
-  );
-};
+const TestPlayer: React.FC = () => {
+  const synthRaw = useContext(RackTargetContext);
+  const synthRef = useRef(synthRaw);
 
-export const OrigSketch: React.FC = () => {
   useEffect(() => {
-    const synth = new Tone.PolySynth(Tone.MonoSynth, {
-      volume: -20,
-      oscillator: {
-        type: 'fatsawtooth',
-        count: 3,
-        spread: 10,
-      },
-      envelope: {
-        attack: 0.05,
-        decay: 0.4,
-        sustain: 0.4,
-        release: 0.1,
-      },
-      filter: {
-        type: 'bandpass',
-        Q: 1.8,
-      },
-      filterEnvelope: {
-        baseFrequency: 'C3',
-        octaves: 4,
-        attack: 0.01,
-        decay: 0.3,
-        sustain: 0,
-        release: 0.2,
-      },
-    });
-
-    const dist = new Tone.Distortion(0.75);
-    dist.wet.value = 0.3;
-
-    const filter = new Tone.Filter({ type: 'lowpass', Q: 12 });
-    const lfo = new Tone.LFO('13m', 300, 2200).connect(filter.frequency);
-
-    const synthOut = new Tone.Channel({ channelCount: 2 }); // must specify # of channels per ToneJS#941
-    synth.chain(dist, filter, synthOut);
-    // synth.chain(chorus, Tone.Destination);
-
-    synthOut.send('synth');
+    const synth = synthRef.current;
+    if (!(synth instanceof Tone.PolySynth)) {
+      console.log(synth);
+      throw new Error('expected synth');
+    }
 
     const testPattern = new Tone.Part<[string, string]>(
       (time, chord) => {
@@ -265,8 +228,6 @@ export const OrigSketch: React.FC = () => {
     testPattern.loopEnd = '2m';
     testPattern.start();
 
-    lfo.start();
-
     // Tone.Transport.scheduleRepeat((time) => {
     //   chord(synth, "C3 E3 G3 B3", "8n", time);
     //   chord(synth, "C3 E3 G3 B3", "8n", time + Tone.Time("4n"));
@@ -274,8 +235,64 @@ export const OrigSketch: React.FC = () => {
     // }, "1m");
   }, []);
 
+  return null;
+};
+
+const BaseSynth: React.FC = ({ children }) => {
+  const rawSynth = (
+    <RPolySynth
+      voice={Tone.MonoSynth}
+      volume={-20}
+      options={{
+        oscillator: {
+          type: 'fatsawtooth',
+          count: 3,
+          spread: 10,
+        },
+        envelope: {
+          attack: 0.05,
+          decay: 0.4,
+          sustain: 0.4,
+          release: 0.1,
+        },
+        filter: {
+          type: 'bandpass',
+          Q: 1.8,
+        },
+        filterEnvelope: {
+          baseFrequency: 'C3',
+          octaves: 4,
+          attack: 0.01,
+          decay: 0.3,
+          sustain: 0,
+          release: 0.2,
+        },
+      }}
+    >
+      {children}
+    </RPolySynth>
+  );
+
+  return (
+    <RFilter type="lowpass" Q={12}>
+      <RLFO connect="frequency" min={300} max={2200} frequency="13m" />
+
+      <RDistortion distortion={0.75} wet={0.3}>
+        {rawSynth}
+      </RDistortion>
+    </RFilter>
+  );
+};
+
+const OrigSketch: React.FC = () => {
   return (
     <RackDestination>
+      <RackChannel send="synth">
+        <BaseSynth>
+          <TestPlayer />
+        </BaseSynth>
+      </RackChannel>
+
       <Ambience>
         <RackChannel receive="synth" />
       </Ambience>
