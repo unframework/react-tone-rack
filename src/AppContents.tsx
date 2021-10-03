@@ -1,8 +1,16 @@
 import React, { useEffect, useRef } from 'react';
 import * as Tone from 'tone';
 
+type GenericInstrumentTriggerFunc = (
+  ...params: Parameters<Tone.Synth['triggerAttackRelease']>
+) => void;
+
+type InstrumentLike = {
+  triggerAttackRelease: GenericInstrumentTriggerFunc;
+};
+
 export const AppContents: React.FC = () => {
-  const lfoRef = useRef();
+  const lfoRef = useRef<Tone.LFO | null>(null);
 
   useEffect(() => {
     const synth = new Tone.PolySynth(Tone.MonoSynth, {
@@ -63,7 +71,12 @@ export const AppContents: React.FC = () => {
     rev.chain(Tone.Destination);
     rev2.chain(Tone.Destination);
 
-    function chord(instr, noteString, duration, time) {
+    function chord(
+      instr: InstrumentLike,
+      noteString: string,
+      duration: number | string,
+      time: number
+    ) {
       for (const note of noteString.split(/\s+/g)) {
         instr.triggerAttackRelease(note, duration, time);
       }
@@ -71,10 +84,10 @@ export const AppContents: React.FC = () => {
 
     Tone.Transport.scheduleRepeat((time) => {
       chord(synth, 'C2 E2 G2 B2', '8n', time);
-      chord(synth, 'C2 E2 G2 B2', '8n', time + Tone.Time('0:1'));
+      chord(synth, 'C2 E2 G2 B2', '8n', time + Tone.Time('0:1').toSeconds());
 
-      chord(synth, 'F2 A2 C3 E3', '8n', time + Tone.Time('1:2:2'));
-      chord(synth, 'F2 A2 C3 E3', '8n', time + Tone.Time('1:3:2'));
+      chord(synth, 'F2 A2 C3 E3', '8n', time + Tone.Time('1:2:2').toSeconds());
+      chord(synth, 'F2 A2 C3 E3', '8n', time + Tone.Time('1:3:2').toSeconds());
     }, '2m');
 
     // Tone.Transport.scheduleRepeat((time) => {
@@ -90,7 +103,7 @@ export const AppContents: React.FC = () => {
         type="button"
         onClick={() => {
           Tone.start().then(() => {
-            lfoRef.current.start();
+            lfoRef.current?.start();
             Tone.Transport.start();
           });
         }}
