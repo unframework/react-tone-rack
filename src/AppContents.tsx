@@ -248,24 +248,22 @@ export const OrigSketch: React.FC = () => {
 
     synthOut.send('synth');
 
-    function chord(
-      instr: InstrumentLike,
-      noteString: string,
-      duration: number | string,
-      time: number
-    ) {
-      for (const note of noteString.split(/\s+/g)) {
-        instr.triggerAttackRelease(note, duration, time);
-      }
-    }
-
-    Tone.Transport.scheduleRepeat((time) => {
-      chord(synth, 'C2 E2 G2 B2', '8n', time);
-      chord(synth, 'C2 E2 G2 B2', '8n', time + Tone.Time('0:1').toSeconds());
-
-      chord(synth, 'F2 A2 C3 E3', '8n', time + Tone.Time('1:2:2').toSeconds());
-      chord(synth, 'F2 A2 C3 E3', '8n', time + Tone.Time('1:3:2').toSeconds());
-    }, '2m');
+    const testPattern = new Tone.Part<[string, string]>(
+      (time, chord) => {
+        for (const note of chord.split(/\s+/g)) {
+          synth.triggerAttackRelease(note, '8n', time);
+        }
+      },
+      [
+        ['0', 'C2 E2 G2 B2'],
+        ['0:1', 'C2 E2 G2 B2'],
+        ['1:2:2', 'F2 A2 C3 E3'],
+        ['1:3:2', 'F2 A2 C3 E3'],
+      ]
+    );
+    testPattern.loop = true;
+    testPattern.loopEnd = '2m';
+    testPattern.start();
 
     lfo.start();
 
