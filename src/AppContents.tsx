@@ -11,8 +11,9 @@ type InstrumentLike = {
 
 const RackTargetContext = React.createContext<Tone.InputNode | null>(null);
 
-function useRackConnection(node?: Tone.ToneAudioNode | null) {
+function useRackConnection(node?: Tone.ToneAudioNode | null, prop?: string) {
   const target = useContext(RackTargetContext);
+  const firstPropRef = useRef(prop); // avoid re-triggering on change
 
   useEffect(() => {
     // ignore if nothing to do
@@ -24,10 +25,24 @@ function useRackConnection(node?: Tone.ToneAudioNode | null) {
       throw new Error('no output to connect to');
     }
 
+    // use either node itself or some specific property of it
+    const propName = firstPropRef.current;
+    const output = propName
+      ? (target as unknown as Record<string, unknown>)[propName]
+      : target;
+
+    if (!(output instanceof Tone.ToneAudioNode)) {
+      if (propName) {
+        throw new Error('cannot connect to audio node property: ' + propName);
+      } else {
+        throw new Error('target not instanceof node');
+      }
+    }
+
     // setup/cleanup logic
-    node.connect(target);
+    node.connect(output);
     return () => {
-      node.disconnect(target);
+      node.disconnect(output);
     };
   }, [node, target]);
 }
@@ -46,7 +61,7 @@ export const RackChannel: React.FC<{ send?: string; receive?: string }> = ({
   receive,
   children,
 }) => {
-  const channel = useMemo(() => new Tone.Channel(), []);
+  const channel = useMemo(() => new Tone.Channel({ channelCount: 2 }), []);
   const sendModeRef = useRef(false);
   const receiveModeRef = useRef(false);
 
@@ -111,7 +126,9 @@ function createRackable<
   NodeClass extends Tone.ToneAudioNode<NodeOptions>,
   NodeOptions extends Tone.ToneAudioNodeOptions
 >(nodeClass: { new (options?: Partial<NodeOptions>): NodeClass }) {
-  const component: React.FC<Partial<NodeOptions>> = (props) => {
+  const component: React.FC<Partial<NodeOptions> & { connect?: string }> = (
+    props
+  ) => {
     const firstParamsRef = useRef(props);
 
     const node = useMemo(() => {
@@ -125,7 +142,7 @@ function createRackable<
       };
     }, [node]);
 
-    useRackConnection(node);
+    useRackConnection(node, props.connect);
 
     return (
       <RackTargetContext.Provider value={node}>
