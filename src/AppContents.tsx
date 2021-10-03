@@ -326,20 +326,14 @@ const TestOsc: React.FC = () => {
 };
 
 const TestPlayer: React.FC = () => {
-  const synthRaw = useContext(RackTargetContext);
-  const synthRef = useRef(synthRaw);
-
   useEffect(() => {
-    const synth = synthRef.current;
-    if (!(synth instanceof Tone.PolySynth)) {
-      console.log(synth);
-      throw new Error('expected synth');
-    }
-
     const testPattern = new Tone.Part<[string, string]>(
       (time, chord) => {
         for (const note of chord.split(/\s+/g)) {
-          synth.triggerAttackRelease(note, '8n', time);
+          GLOBAL_TRANSPORT_EVENTS.emit('note:testPattern', {
+            time,
+            value: note,
+          });
         }
       },
       [
@@ -367,6 +361,7 @@ const BaseSynth: React.FC = ({ children }) => {
   const rawSynth = (
     <RPolySynth
       notes="testPattern"
+      duration="8n"
       voice={Tone.MonoSynth}
       volume={-20}
       options={{
@@ -413,10 +408,10 @@ const BaseSynth: React.FC = ({ children }) => {
 const OrigSketch: React.FC = () => {
   return (
     <RackDestination>
+      <TestPlayer />
+
       <RackChannel send="synth">
-        <BaseSynth>
-          <TestPlayer />
-        </BaseSynth>
+        <BaseSynth />
       </RackChannel>
 
       <Ambience>
