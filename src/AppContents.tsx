@@ -1,4 +1,11 @@
-import React, { useContext, useEffect, useRef, useMemo, useState } from 'react';
+import React, {
+  useContext,
+  useEffect,
+  useRef,
+  useMemo,
+  useState,
+  useImperativeHandle,
+} from 'react';
 import * as Tone from 'tone';
 
 type GenericInstrumentTriggerFunc = (
@@ -119,6 +126,8 @@ export const RackChannel: React.FC<{ send?: string; receive?: string }> = ({
   );
 };
 
+type RackableProps<NodeOptions> = Partial<NodeOptions> & { connect?: string };
+
 function createRackable<
   NodeOptions extends Tone.ToneAudioNodeOptions,
   ResultType extends Tone.ToneAudioNode = Tone.ToneAudioNode
@@ -126,9 +135,10 @@ function createRackable<
   nodeClass: { new (options?: Partial<NodeOptions>): ResultType },
   init?: (node: ResultType) => void
 ) {
-  const component: React.FC<Partial<NodeOptions> & { connect?: string }> = (
-    props
-  ) => {
+  const componentFunc: React.ForwardRefRenderFunction<
+    ResultType,
+    React.PropsWithChildren<RackableProps<NodeOptions>>
+  > = (props, innerRef) => {
     const firstParamsRef = useRef(props);
 
     const node = useMemo(() => {
@@ -138,6 +148,8 @@ function createRackable<
       }
       return result;
     }, []);
+
+    useImperativeHandle(innerRef, () => node);
 
     // connect/disconnect the node to parent
     useRackConnection(node, props.connect);
@@ -149,7 +161,7 @@ function createRackable<
     );
   };
 
-  return component;
+  return React.forwardRef(componentFunc);
 }
 
 const RDistortion = createRackable(Tone.Distortion);
