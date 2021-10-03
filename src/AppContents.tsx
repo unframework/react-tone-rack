@@ -276,6 +276,18 @@ export function createRackableInstrument<
   return React.forwardRef(componentFunc);
 }
 
+function useNoteEmitter(noteTopic: string) {
+  return useCallback(
+    (time: number, value: unknown) => {
+      GLOBAL_TRANSPORT_EVENTS.emit(`note:${noteTopic}`, {
+        time,
+        value,
+      });
+    },
+    [noteTopic]
+  );
+}
+
 const RDistortion = createRackable(Tone.Distortion);
 const RFeedbackDelay = createRackable(Tone.FeedbackDelay);
 const RFilter = createRackable(Tone.Filter);
@@ -326,14 +338,13 @@ const TestOsc: React.FC = () => {
 };
 
 const TestPlayer: React.FC = () => {
+  const emitNote = useNoteEmitter('testPattern');
+
   useEffect(() => {
     const testPattern = new Tone.Part<[string, string]>(
       (time, chord) => {
         for (const note of chord.split(/\s+/g)) {
-          GLOBAL_TRANSPORT_EVENTS.emit('note:testPattern', {
-            time,
-            value: note,
-          });
+          emitNote(time, note);
         }
       },
       [
@@ -352,7 +363,7 @@ const TestPlayer: React.FC = () => {
     //   chord(synth, "C3 E3 G3 B3", "8n", time + Tone.Time("4n"));
     //   chord(synth, "F3 A3 C4 E4", "8n", time + Tone.Time("1t"));
     // }, "1m");
-  }, []);
+  }, [emitNote]);
 
   return null;
 };
