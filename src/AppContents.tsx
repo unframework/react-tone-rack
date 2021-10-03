@@ -123,15 +123,23 @@ type FilteredKeys<T, U> = { [P in keyof T]: T[P] extends U ? T[P] : never };
 type ReverbParams = FilteredKeys<Tone.Reverb, Tone.Signal<any>>;
 
 function createRackable<
-  NodeOptions extends Tone.ToneAudioNodeOptions
->(nodeClass: { new (options?: Partial<NodeOptions>): Tone.ToneAudioNode }) {
+  NodeOptions extends Tone.ToneAudioNodeOptions,
+  ResultType extends Tone.ToneAudioNode = Tone.ToneAudioNode
+>(
+  nodeClass: { new (options?: Partial<NodeOptions>): ResultType },
+  init?: (node: ResultType) => void
+) {
   const component: React.FC<Partial<NodeOptions> & { connect?: string }> = (
     props
   ) => {
     const firstParamsRef = useRef(props);
 
     const node = useMemo(() => {
-      return new nodeClass(firstParamsRef.current);
+      const result = new nodeClass(firstParamsRef.current);
+      if (init) {
+        init(result);
+      }
+      return result;
     }, []);
 
     // always clean up on unmount
@@ -156,7 +164,9 @@ function createRackable<
 const RDistortion = createRackable(Tone.Distortion);
 const RFeedbackDelay = createRackable(Tone.FeedbackDelay);
 const RFilter = createRackable(Tone.Filter);
-const RLFO = createRackable(Tone.LFO);
+const RLFO = createRackable<Tone.LFOOptions, Tone.LFO>(Tone.LFO, (lfo) => {
+  lfo.start();
+});
 const RReverb = createRackable(Tone.Reverb);
 const RPolySynth = createRackable<Tone.PolySynthOptions<Tone.MonoSynth>>(
   Tone.PolySynth
