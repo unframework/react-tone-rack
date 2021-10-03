@@ -292,7 +292,7 @@ const RDistortion = createRackable(Tone.Distortion);
 const RFeedbackDelay = createRackable(Tone.FeedbackDelay);
 const RFilter = createRackable(Tone.Filter);
 const RLFO = createRackable<Tone.LFOOptions, Tone.LFO>(Tone.LFO, (lfo) => {
-  lfo.start();
+  lfo.start(); // @todo use sync()/unsync()
 });
 const RReverb = createRackable(Tone.Reverb);
 const RPolySynth = createRackableInstrument<
@@ -324,19 +324,6 @@ const Ambience: React.FC = ({ children }) => {
   );
 };
 
-const TestOsc: React.FC = () => {
-  const noise = useMemo(() => {
-    const node = new Tone.Noise('pink');
-    node.volume.value = -10;
-    node.start();
-    return node;
-  }, []);
-
-  useRackConnection(noise);
-
-  return null;
-};
-
 const TestPlayer: React.FC = () => {
   const emitNote = useNoteEmitter('testPattern');
 
@@ -363,6 +350,12 @@ const TestPlayer: React.FC = () => {
     //   chord(synth, "C3 E3 G3 B3", "8n", time + Tone.Time("4n"));
     //   chord(synth, "F3 A3 C4 E4", "8n", time + Tone.Time("1t"));
     // }, "1m");
+
+    // always clean up
+    return () => {
+      testPattern.stop();
+      testPattern.dispose();
+    };
   }, [emitNote]);
 
   return null;
