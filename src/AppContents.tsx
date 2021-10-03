@@ -122,30 +122,47 @@ export const RackChannel: React.FC<{ send?: string; receive?: string }> = ({
   );
 };
 
+type RackableClass<NodeOptions, ResultType> = {
+  new (options?: Partial<NodeOptions>): ResultType;
+};
+
+function useRackableNode<
+  NodeOptions extends Tone.ToneAudioNodeOptions,
+  ResultType extends Tone.ToneAudioNode = Tone.ToneAudioNode
+>(
+  nodeClass: RackableClass<NodeOptions, ResultType>,
+  props: React.PropsWithChildren<Partial<NodeOptions>>,
+  innerRef: React.ForwardedRef<ResultType>
+) {
+  const firstParamsRef = useRef(props);
+  const node = useMemo(() => new nodeClass(firstParamsRef.current), []);
+
+  useImperativeHandle(innerRef, () => node);
+
+  return node;
+}
+
 type RackableProps<NodeOptions> = Partial<NodeOptions> & { connect?: string };
 
 function createRackable<
   NodeOptions extends Tone.ToneAudioNodeOptions,
   ResultType extends Tone.ToneAudioNode = Tone.ToneAudioNode
 >(
-  nodeClass: { new (options?: Partial<NodeOptions>): ResultType },
+  nodeClass: RackableClass<NodeOptions, ResultType>,
   init?: (node: ResultType) => void
 ) {
   const componentFunc: React.ForwardRefRenderFunction<
     ResultType,
     React.PropsWithChildren<RackableProps<NodeOptions>>
   > = (props, innerRef) => {
-    const firstParamsRef = useRef(props);
+    const node = useRackableNode(nodeClass, props, innerRef);
 
-    const node = useMemo(() => {
-      const result = new nodeClass(firstParamsRef.current);
+    // @todo remove
+    useEffect(() => {
       if (init) {
-        init(result);
+        init(node);
       }
-      return result;
     }, []);
-
-    useImperativeHandle(innerRef, () => node);
 
     // connect/disconnect the node to parent
     useRackConnection(node, props.connect);
