@@ -156,22 +156,29 @@ function createRackable<
 
 const RFeedbackDelay = createRackable(Tone.FeedbackDelay);
 const RFilter = createRackable(Tone.Filter);
+const RLFO = createRackable(Tone.LFO);
 const RReverb = createRackable(Tone.Reverb);
 
 const Ambience: React.FC = ({ children }) => {
   return (
     <>
       <RackChannel send="ambienceIn">{children}</RackChannel>
-      <RReverb>
+
+      <RReverb decay={12} preDelay={0.01} wet={0.35}>
         <RackChannel receive="ambienceIn" />
       </RReverb>
-      <RReverb>
-        <RFeedbackDelay>
-          <RackChannel receive="ambienceIn" />
-        </RFeedbackDelay>
-        <RFeedbackDelay>
-          <RackChannel receive="ambienceIn" />
-        </RFeedbackDelay>
+
+      <RReverb decay={4} preDelay={0.01} wet={0.45}>
+        <RFilter type="bandpass" frequency="C7" Q={2}>
+          <RFeedbackDelay delayTime="4t" feedback={0.65}>
+            <RackChannel receive="ambienceIn" />
+          </RFeedbackDelay>
+        </RFilter>
+        <RFilter type="bandpass" frequency="C8" Q={2}>
+          <RFeedbackDelay delayTime="3t" feedback={0.75}>
+            <RackChannel receive="ambienceIn" />
+          </RFeedbackDelay>
+        </RFilter>
       </RReverb>
     </>
   );
@@ -241,34 +248,6 @@ export const OrigSketch: React.FC = () => {
 
     synthOut.send('synth');
 
-    const ambienceIn = new Tone.Channel({ channelCount: 2 });
-    const ambienceOut = new Tone.Channel({ channelCount: 2 });
-
-    const delay = new Tone.FeedbackDelay('4t', 0.65);
-    const delayFilter = new Tone.Filter({
-      type: 'bandpass',
-      frequency: 'C7',
-      Q: 2,
-    });
-
-    const delay2 = new Tone.FeedbackDelay('3t', 0.75);
-    const delay2Filter = new Tone.Filter({
-      type: 'bandpass',
-      frequency: 'C8',
-      Q: 2,
-    });
-
-    const rev = new Tone.Reverb({ decay: 12, preDelay: 0.01, wet: 0.35 });
-    ambienceIn.chain(rev, ambienceOut);
-
-    const rev2 = new Tone.Reverb({ decay: 4, preDelay: 0.01, wet: 0.45 });
-    ambienceIn.chain(delay, delayFilter, rev2);
-    ambienceIn.chain(delay2, delay2Filter, rev2);
-    rev2.chain(ambienceOut);
-
-    ambienceIn.receive('synth');
-    ambienceOut.connect(Tone.Destination);
-
     function chord(
       instr: InstrumentLike,
       noteString: string,
@@ -297,14 +276,20 @@ export const OrigSketch: React.FC = () => {
     // }, "1m");
   }, []);
 
-  return null;
+  return (
+    <RackDestination>
+      <Ambience>
+        <RackChannel receive="synth" />
+      </Ambience>
+    </RackDestination>
+  );
 };
 
 export const AppContents: React.FC = () => {
   const [started, setStarted] = useState(false);
   return (
     <>
-      {started ? <TestMain /> : null}
+      {started ? <OrigSketch /> : null}
 
       <div>
         <button
