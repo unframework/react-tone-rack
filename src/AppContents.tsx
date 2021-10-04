@@ -10,6 +10,8 @@ import React, {
 import * as Tone from 'tone';
 import { EventEmitter } from 'events';
 
+import { FeedbackDelayOptions, ReverbOptions } from './toneMissingTypes';
+
 const RackTargetContext = React.createContext<Tone.InputNode>(Tone.Destination);
 
 function useRackConnection(node?: Tone.ToneAudioNode | null, prop?: string) {
@@ -120,16 +122,27 @@ export const RackChannel: React.FC<{ send?: string; receive?: string }> = ({
   );
 };
 
+/**
+ * Recursive Partial taken from ToneJS (originally from here: https://stackoverflow.com/a/51365037)
+ */
+export declare type RecursivePartial<T> = {
+  [P in keyof T]?: T[P] extends Array<infer U>
+    ? Array<RecursivePartial<U>>
+    : T[P] extends object
+    ? RecursivePartial<T[P]>
+    : T[P];
+};
+
 type RackableClass<NodeOptions, ResultType> = {
-  new (options?: Partial<NodeOptions>): ResultType;
+  new (options?: NodeOptions): ResultType;
 };
 
 function useRackableNode<
-  NodeOptions extends Tone.ToneAudioNodeOptions,
+  NodeOptions,
   ResultType extends Tone.ToneAudioNode = Tone.ToneAudioNode
 >(
   nodeClass: RackableClass<NodeOptions, ResultType>,
-  props: React.PropsWithChildren<Partial<NodeOptions>>,
+  props: React.PropsWithChildren<NodeOptions>,
   innerRef: React.ForwardedRef<ResultType>
 ) {
   const firstParamsRef = useRef(props);
@@ -140,10 +153,12 @@ function useRackableNode<
   return node;
 }
 
-type RackableProps<NodeOptions> = Partial<NodeOptions> & { connect?: string };
+type RackableProps<NodeOptions> = NodeOptions & {
+  connect?: string;
+};
 
 function createRackable<
-  NodeOptions extends Tone.ToneAudioNodeOptions,
+  NodeOptions,
   ResultType extends Tone.ToneAudioNode = Tone.ToneAudioNode
 >(nodeClass: RackableClass<NodeOptions, ResultType>) {
   const componentFunc: React.ForwardRefRenderFunction<
@@ -174,7 +189,7 @@ interface SourceLike extends Tone.ToneAudioNode {
 
 // nodes synced to transport for start/stop and BPM @todo rename from "source"?
 function createRackableSource<
-  NodeOptions extends Tone.ToneAudioNodeOptions,
+  NodeOptions,
   ResultType extends SourceLike = SourceLike
 >(nodeClass: RackableClass<NodeOptions, ResultType>) {
   const componentFunc: React.ForwardRefRenderFunction<
@@ -257,7 +272,7 @@ interface InstrumentLike extends Tone.ToneAudioNode {
 }
 
 export function createRackableInstrument<
-  NodeOptions extends Tone.ToneAudioNodeOptions,
+  NodeOptions,
   ResultType extends InstrumentLike = InstrumentLike
 >(nodeClass: RackableClass<NodeOptions, ResultType>) {
   const componentFunc: React.ForwardRefRenderFunction<
@@ -342,13 +357,21 @@ function useNoteEmitter(noteTopic: string) {
   );
 }
 
-const RDistortion = createRackable(Tone.Distortion);
-const RFeedbackDelay = createRackable(Tone.FeedbackDelay);
-const RFilter = createRackable(Tone.Filter);
-const RLFO = createRackableSource<Tone.LFOOptions, Tone.LFO>(Tone.LFO);
-const RReverb = createRackable(Tone.Reverb);
+const RDistortion = createRackable<
+  Partial<Tone.DistortionOptions>,
+  Tone.Distortion
+>(Tone.Distortion);
+const RFeedbackDelay = createRackable<Partial<FeedbackDelayOptions>>(
+  Tone.FeedbackDelay
+);
+const RFilter = createRackable<Partial<Tone.FilterOptions>>(Tone.Filter);
+const RLFO = createRackableSource<Partial<Tone.LFOOptions>, Tone.LFO>(Tone.LFO);
+const RMonoSynth = createRackableInstrument<
+  RecursivePartial<Tone.MonoSynthOptions>
+>(Tone.MonoSynth);
+const RReverb = createRackable<Partial<ReverbOptions>>(Tone.Reverb);
 const RPolySynth = createRackableInstrument<
-  Tone.PolySynthOptions<Tone.MonoSynth>
+  Partial<Tone.PolySynthOptions<Tone.MonoSynth>>
 >(Tone.PolySynth);
 
 const Ambience: React.FC = ({ children }) => {
