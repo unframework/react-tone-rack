@@ -410,10 +410,11 @@ const TestPlayer: React.FC = () => {
         }
       },
       [
-        ['0', 'C2 E2 G2 B2'],
         ['0:1', 'C2 E2 G2 B2'],
-        ['1:2:2', 'F2 A2 C3 E3'],
-        ['1:3:2', 'F2 A2 C3 E3'],
+        ['0:3', 'C2 E2 G2 B2'],
+        ['1:1', 'C2 E2 G2 B2'],
+        // ['1:3', 'C2 E2 G2 B2'],
+        ['1:3', 'F2 A2 C3 E3'],
       ]
     );
     testPattern.loop = true;
@@ -430,6 +431,35 @@ const TestPlayer: React.FC = () => {
     return () => {
       testPattern.stop();
       testPattern.dispose();
+    };
+  }, [emitNote]);
+
+  return null;
+};
+
+const TestBassline: React.FC = () => {
+  const emitNote = useNoteEmitter('bassline');
+
+  useEffect(() => {
+    const pattern = new Tone.Part<[string, string]>(
+      (time, note) => {
+        emitNote(time, note);
+      },
+      [
+        ['0:0', 'E2'],
+        ['0:0:2', 'E2'],
+        ['1:0', 'E2'],
+        ['1:3:2', 'G2'],
+      ]
+    );
+    pattern.loop = true;
+    pattern.loopEnd = '2m';
+    pattern.start();
+
+    // always clean up
+    return () => {
+      pattern.stop();
+      pattern.dispose();
     };
   }, [emitNote]);
 
@@ -488,6 +518,7 @@ const OrigSketch: React.FC = () => {
   return (
     <RackDestination>
       <TestPlayer />
+      <TestBassline />
 
       <RackChannel send="synth">
         <BaseSynth />
@@ -496,6 +527,33 @@ const OrigSketch: React.FC = () => {
       <Ambience>
         <RackChannel receive="synth" />
       </Ambience>
+
+      <RReverb decay={1} wet={0.2}>
+        <RMonoSynth
+          notes="bassline"
+          duration="8n"
+          oscillator={{
+            type: 'square',
+            volume: -10,
+          }}
+          envelope={{
+            attack: 0.03,
+            decay: 0.3,
+            sustain: 0.7,
+            release: 0.1,
+          }}
+          filter={{
+            type: 'lowpass',
+            Q: 2,
+          }}
+          filterEnvelope={{
+            baseFrequency: 'C3',
+            octaves: 0,
+            attack: 0.01,
+            sustain: 1,
+          }}
+        />
+      </RReverb>
     </RackDestination>
   );
 };
