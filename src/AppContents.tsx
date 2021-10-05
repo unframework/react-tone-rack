@@ -446,10 +446,12 @@ const TestBassline: React.FC = () => {
         emitNote(time, note);
       },
       [
-        ['0:0', 'E2'],
+        ['0:0', 'C2'],
         ['0:0:2', 'E2'],
+        ['0:2', 'E2'],
+        ['0:2:2', 'E2'],
         ['1:0', 'E2'],
-        ['1:3:2', 'G2'],
+        ['1:3:2', 'E2'],
       ]
     );
     pattern.loop = true;
@@ -481,8 +483,8 @@ const BaseSynth: React.FC = ({ children }) => {
         },
         envelope: {
           attack: 0.05,
-          decay: 0.4,
-          sustain: 0.4,
+          decay: 0.2,
+          sustain: 0.2,
           release: 0.1,
         },
         filter: {
@@ -528,7 +530,7 @@ const OrigSketch: React.FC = () => {
         <RackChannel receive="synth" />
       </Ambience>
 
-      <RReverb decay={1} wet={0.2}>
+      <RReverb decay={5} wet={0.2}>
         <RMonoSynth
           notes="bassline"
           duration="8n"
