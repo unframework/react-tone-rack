@@ -1,11 +1,17 @@
 import React from 'react';
 import { AppProps } from 'next/app';
 
+import { RackUIContainer } from '../rackUI';
+
 import 'tailwindcss/tailwind.css';
 import '../index.css';
 
 const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
-  return <Component {...pageProps} />;
+  return (
+    <RackUIContainer>
+      <Component {...pageProps} />
+    </RackUIContainer>
+  );
 };
 
 // // render after resources are ready
