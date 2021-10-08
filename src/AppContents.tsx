@@ -201,26 +201,9 @@ const OrigSketch: React.FC = () => {
 };
 
 export const AppContents: React.FC = () => {
-  const [started, setStarted] = useState(false);
   return (
     <>
-      {started ? <OrigSketch /> : null}
-
-      <div>
-        <button
-          type="button"
-          onClick={() => {
-            Tone.start().then(() => {
-              setStarted(true);
-
-              // start main timeline after everything renders
-              Tone.Transport.start('+0.1');
-            });
-          }}
-        >
-          Start
-        </button>
-      </div>
+      <OrigSketch />
     </>
   );
 };
