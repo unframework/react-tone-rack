@@ -5,17 +5,21 @@
   "scripts": {},
   "author": "Nick Matantsev <nick.matantsev@gmail.com>",
   "license": "ISC",
-  "dependencies": {
+  "dependencies": {},
+  "peerDependencies": {
+    "react": "^16.8.0 || >=17",
+    "react-dom": "^16.8.0 || >=17",
+    "tone": ">=14"
+  },
+  "devDependencies": {
     "@types/react": "^17.0.9",
     "@types/react-dom": "^17.0.9",
     "cross-env": "^5.2.0",
     "events": "^3.3.0",
+    "prettier": "^2.2.1",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "tone": "^14.7.77",
     "typescript": "^4.2.0"
-  },
-  "devDependencies": {
-    "prettier": "^2.2.1"
   }
 }
