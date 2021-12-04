@@ -28,6 +28,7 @@ module.exports = {
     ],
   },
   externals: {
+    events: 'events',
     react: 'react',
     'react-dom': 'react-dom',
     tone: 'tone',

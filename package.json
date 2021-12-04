@@ -12,7 +12,9 @@
   "scripts": {
     "prepare": "webpack --mode production && dts-bundle-generator -o dist/index.d.ts src/index.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "events": "^3.3.0"
+  },
   "peerDependencies": {
     "react": "^16.8.0 || >=17",
     "react-dom": "^16.8.0 || >=17",
@@ -24,7 +26,6 @@
     "clean-webpack-plugin": "^4.0.0",
     "cross-env": "^5.2.0",
     "dts-bundle-generator": "^6.1.0",
-    "events": "^3.3.0",
     "prettier": "^2.2.1",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
