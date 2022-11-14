@@ -57,7 +57,9 @@ export function useRackConnection(
 }
 
 // pipe straight to the global audio output
-export const RackDestination: React.FC = ({ children }) => {
+export const RackDestination: React.FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   return (
     <RackTargetContext.Provider value={Tone.Destination}>
       {children}
@@ -65,11 +67,9 @@ export const RackDestination: React.FC = ({ children }) => {
   );
 };
 
-export const RackChannel: React.FC<{ send?: string; receive?: string }> = ({
-  send,
-  receive,
-  children,
-}) => {
+export const RackChannel: React.FC<
+  React.PropsWithChildren<{ send?: string; receive?: string }>
+> = ({ send, receive, children }) => {
   const channel = useMemo(() => new Tone.Channel({ channelCount: 2 }), []);
   const sendModeRef = useRef(false);
   const receiveModeRef = useRef(false);
@@ -292,6 +292,7 @@ export function createRackableInstrument<
     ResultType,
     React.PropsWithChildren<RackableInstrumentProps<NodeOptions>>
   > = (props, innerRef) => {
+    // @todo this function runs twice? but effects run only the second time??
     const instrNode = useRackableNode(nodeClass, props, innerRef);
 
     // connect/disconnect the node to parent
