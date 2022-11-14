@@ -1,6 +1,6 @@
 {
   "name": "react-tone-rack",
-  "version": "0.0.1-alpha.0",
+  "version": "0.0.1-alpha.1",
   "description": "React wrapper for ToneJS building blocks",
   "author": "Nick Matantsev <nick.matantsev@gmail.com>",
   "license": "ISC",
