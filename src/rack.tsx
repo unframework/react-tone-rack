@@ -142,6 +142,7 @@ export declare type RecursivePartial<T> = {
 // internal
 type RackableClass<NodeOptions, ResultType> = {
   new (options?: NodeOptions): ResultType;
+  getDefaults(): NodeOptions;
 };
 
 // internal
@@ -274,6 +275,8 @@ function parseEventVelocity<DefaultType>(
 // internal
 export interface InstrumentLike extends Tone.ToneAudioNode {
   // expect a call signature similar to e.g. synth
+  triggerAttack: (...params: Parameters<Tone.Synth['triggerAttack']>) => void;
+  triggerRelease: (...params: Parameters<Tone.Synth['triggerRelease']>) => void;
   triggerAttackRelease: (
     ...params: Parameters<Tone.Synth['triggerAttackRelease']>
   ) => void;
@@ -398,33 +401,70 @@ type RPSOptions = Partial<
   Omit<Tone.PolySynthOptions<Tone.Synth>, 'voice' | 'options'>
 >;
 
+interface ProxyVoiceOptions {
+  onCreate: (options: {}) => Promise<InstrumentLike>;
+}
+
+class ProxyVoice {
+  private _output: Tone.Volume;
+  private _instrument: InstrumentLike | null;
+
+  constructor(...args: any[]) {
+    console.log('instantiating proxy voice');
+    this._output = new Tone.Volume();
+
+    this._instrument = null;
+    const options = args[0] as ProxyVoiceOptions;
+    options.onCreate(args[0]).then((instrument) => {
+      instrument.connect(this._output);
+      this._instrument = instrument;
+    });
+  }
+
+  connect(...params: Parameters<Tone.ToneAudioNode['connect']>) {
+    this._output.connect(...params);
+  }
+
+  triggerAttack(...args: Parameters<Tone.Synth['triggerAttack']>) {
+    if (!this._instrument) {
+      throw new Error('voice did not instantiate');
+    }
+
+    this._instrument.triggerAttack(...args);
+    return this;
+  }
+
+  triggerRelease(...args: Parameters<Tone.Synth['triggerRelease']>) {
+    if (!this._instrument) {
+      throw new Error('voice did not instantiate');
+    }
+
+    this._instrument.triggerRelease(...args);
+    return this;
+  }
+
+  triggerAttackRelease(
+    ...args: Parameters<Tone.Synth['triggerAttackRelease']>
+  ) {
+    if (!this._instrument) {
+      throw new Error('voice did not instantiate');
+    }
+
+    this._instrument.triggerAttackRelease(...args);
+    return this;
+  }
+
+  static getDefaults() {
+    return Tone.Synth.getDefaults();
+  }
+}
+
 export const RPolySynth2 = React.forwardRef(function (
   props: RackableInstrumentProps<RPSOptions> & {
     children: React.ReactElement;
   },
   innerRef: React.ForwardedRef<InstrumentLike>
 ) {
-  const proxyVoiceClass = useMemo(() => {
-    class ProxyVoice {
-      private _output: Tone.Volume;
-
-      constructor(options: {}) {
-        console.log('instantiating proxy voice');
-        this._output = new Tone.Volume();
-      }
-
-      connect(...params: Parameters<Tone.ToneAudioNode['connect']>) {
-        this._output.connect(...params);
-      }
-
-      static getDefaults() {
-        return Tone.Synth.getDefaults();
-      }
-    }
-
-    return ProxyVoice;
-  }, []);
-
   const nodeClass: RackableClass<
     Partial<Tone.PolySynthOptions<Tone.Synth>>,
     InstrumentLike
@@ -433,7 +473,16 @@ export const RPolySynth2 = React.forwardRef(function (
   // @todo this function runs twice? but effects run only the second time??
   const instrNode = useRackableNode(
     nodeClass,
-    { ...props, voice: proxyVoiceClass, options: {} },
+    {
+      ...props,
+      voice: ProxyVoice as unknown as typeof Tone.Synth,
+      options: {
+        onCreate(options: {}) {
+          console.log('creat');
+          return new Promise(() => {});
+        },
+      } as unknown as Tone.SynthOptions,
+    },
     innerRef
   );
 
