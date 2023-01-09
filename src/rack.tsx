@@ -389,3 +389,80 @@ export const RReverb = createRackable<Partial<ReverbOptions>>(Tone.Reverb);
 export const RPolySynth = createRackableInstrument<
   Partial<Tone.PolySynthOptions<Tone.MonoSynth>>
 >(Tone.PolySynth);
+
+export function createRP<MonoVoice = Tone.MonoSynth>() {
+  type NodeOptions = Partial<Tone.PolySynthOptions<MonoVoice>>;
+  type ResultType = InstrumentLike;
+  const nodeClass: RackableClass<NodeOptions, ResultType> = Tone.PolySynth;
+
+  const componentFunc: React.ForwardRefRenderFunction<
+    ResultType,
+    React.PropsWithChildren<RackableInstrumentProps<NodeOptions>>
+  > = (props, innerRef) => {
+    // @todo this function runs twice? but effects run only the second time??
+    const instrNode = useRackableNode(nodeClass, props, innerRef);
+
+    // connect/disconnect the node to parent
+    useRackConnection(instrNode, props.connect);
+
+    const firstNoteTopicRef = useRef(props.notes);
+
+    const durationRef = useRef(props.duration);
+    durationRef.current = props.duration;
+    const velocityRef = useRef(props.velocity);
+    velocityRef.current = props.velocity;
+
+    // listen for note events coming down from the transport
+    useEffect(() => {
+      const noteTopic = firstNoteTopicRef.current;
+      const noteListener = ({ time, value }: TransportNoteEvent) => {
+        if (time === undefined) {
+          return;
+        }
+
+        if (typeof value === 'string') {
+          // simple string notes, use prop-configured duration/velocity
+          instrNode.triggerAttackRelease(
+            value,
+            durationRef.current || 0.1, // @todo report?
+            time,
+            velocityRef.current
+          );
+        } else if (typeof value === 'object' && value) {
+          // object notes, use specified values or fall back to prop-configured
+          // duration/velocity for unspecified ones
+          const { note, duration, velocity } = value as Record<string, unknown>;
+          instrNode.triggerAttackRelease(
+            String(note), // @todo better
+            duration === undefined
+              ? durationRef.current || 0.1 // @todo report
+              : parseEventDuration(duration, 0.1),
+            time,
+            velocity === undefined
+              ? velocityRef.current
+              : parseEventVelocity(velocity, undefined)
+          );
+        }
+      };
+
+      // listen for notes and sync with timeline
+      GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
+      instrNode.sync();
+
+      return () => {
+        // unsync and stop listening for notes
+        instrNode.unsync();
+        GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
+      };
+    }, [instrNode]);
+
+    return (
+      <RackTargetContext.Provider value={instrNode}>
+        {props.children}
+      </RackTargetContext.Provider>
+    );
+  };
+  console.log('created a poly');
+
+  return React.forwardRef(componentFunc);
+}
