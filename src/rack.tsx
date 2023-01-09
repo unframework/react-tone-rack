@@ -390,79 +390,92 @@ export const RPolySynth = createRackableInstrument<
   Partial<Tone.PolySynthOptions<Tone.MonoSynth>>
 >(Tone.PolySynth);
 
-export function createRP<MonoVoice = Tone.MonoSynth>() {
-  type NodeOptions = Partial<Tone.PolySynthOptions<MonoVoice>>;
-  type ResultType = InstrumentLike;
-  const nodeClass: RackableClass<NodeOptions, ResultType> = Tone.PolySynth;
+type RPNodeOptions<MonoVoice> = Partial<
+  Omit<Tone.PolySynthOptions<MonoVoice>, 'voice' | 'options'>
+>;
 
-  const componentFunc: React.ForwardRefRenderFunction<
-    ResultType,
-    React.PropsWithChildren<RackableInstrumentProps<NodeOptions>>
-  > = (props, innerRef) => {
-    // @todo this function runs twice? but effects run only the second time??
-    const instrNode = useRackableNode(nodeClass, props, innerRef);
+export const RPolySynth2 = React.forwardRef(function (
+  props: RackableInstrumentProps<RPNodeOptions<Tone.MonoSynth>> & {
+    children?: React.ReactElement;
+    voice: any; // @todo
+    options: any; // @todo
+  },
+  innerRef: React.ForwardedRef<InstrumentLike>
+) {
+  const nodeClass: RackableClass<
+    Partial<Tone.PolySynthOptions<Tone.MonoSynth>>,
+    InstrumentLike
+  > = Tone.PolySynth;
 
-    // connect/disconnect the node to parent
-    useRackConnection(instrNode, props.connect);
+  // @todo this function runs twice? but effects run only the second time??
+  const instrNode = useRackableNode(
+    nodeClass,
+    props,
+    // { ...props, voice: null, options: {} },
+    innerRef
+  );
 
-    const firstNoteTopicRef = useRef(props.notes);
+  // connect/disconnect the node to parent
+  useRackConnection(instrNode, props.connect);
 
-    const durationRef = useRef(props.duration);
-    durationRef.current = props.duration;
-    const velocityRef = useRef(props.velocity);
-    velocityRef.current = props.velocity;
+  const firstNoteTopicRef = useRef(props.notes);
 
-    // listen for note events coming down from the transport
-    useEffect(() => {
-      const noteTopic = firstNoteTopicRef.current;
-      const noteListener = ({ time, value }: TransportNoteEvent) => {
-        if (time === undefined) {
-          return;
-        }
+  const durationRef = useRef(props.duration);
+  durationRef.current = props.duration;
+  const velocityRef = useRef(props.velocity);
+  velocityRef.current = props.velocity;
 
-        if (typeof value === 'string') {
-          // simple string notes, use prop-configured duration/velocity
-          instrNode.triggerAttackRelease(
-            value,
-            durationRef.current || 0.1, // @todo report?
-            time,
-            velocityRef.current
-          );
-        } else if (typeof value === 'object' && value) {
-          // object notes, use specified values or fall back to prop-configured
-          // duration/velocity for unspecified ones
-          const { note, duration, velocity } = value as Record<string, unknown>;
-          instrNode.triggerAttackRelease(
-            String(note), // @todo better
-            duration === undefined
-              ? durationRef.current || 0.1 // @todo report
-              : parseEventDuration(duration, 0.1),
-            time,
-            velocity === undefined
-              ? velocityRef.current
-              : parseEventVelocity(velocity, undefined)
-          );
-        }
-      };
+  // listen for note events coming down from the transport
+  useEffect(() => {
+    const noteTopic = firstNoteTopicRef.current;
+    const noteListener = ({ time, value }: TransportNoteEvent) => {
+      if (time === undefined) {
+        return;
+      }
 
-      // listen for notes and sync with timeline
-      GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
-      instrNode.sync();
+      if (typeof value === 'string') {
+        // simple string notes, use prop-configured duration/velocity
+        instrNode.triggerAttackRelease(
+          value,
+          durationRef.current || 0.1, // @todo report?
+          time,
+          velocityRef.current
+        );
+      } else if (typeof value === 'object' && value) {
+        // object notes, use specified values or fall back to prop-configured
+        // duration/velocity for unspecified ones
+        const { note, duration, velocity } = value as Record<string, unknown>;
+        instrNode.triggerAttackRelease(
+          String(note), // @todo better
+          duration === undefined
+            ? durationRef.current || 0.1 // @todo report
+            : parseEventDuration(duration, 0.1),
+          time,
+          velocity === undefined
+            ? velocityRef.current
+            : parseEventVelocity(velocity, undefined)
+        );
+      }
+    };
 
-      return () => {
-        // unsync and stop listening for notes
-        instrNode.unsync();
-        GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
-      };
-    }, [instrNode]);
+    // listen for notes and sync with timeline
+    GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
+    instrNode.sync();
 
-    return (
-      <RackTargetContext.Provider value={instrNode}>
-        {props.children}
-      </RackTargetContext.Provider>
-    );
-  };
-  console.log('created a poly');
+    return () => {
+      // unsync and stop listening for notes
+      instrNode.unsync();
+      GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
+    };
+  }, [instrNode]);
 
-  return React.forwardRef(componentFunc);
+  return (
+    <RackTargetContext.Provider value={instrNode}>
+      {props.children}
+    </RackTargetContext.Provider>
+  );
+});
+
+export function createRP<MonoVoice>() {
+  return RPolySynth2;
 }
