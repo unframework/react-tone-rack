@@ -395,7 +395,7 @@ export const RPolySynth = createRackableInstrument<
 
 // any voice-specific options are in child content, so we just use a dummy voice type here
 type RPSOptions = Partial<
-  Omit<Tone.PolySynthOptions<Tone.MonoSynth>, 'voice' | 'options'>
+  Omit<Tone.PolySynthOptions<Tone.Synth>, 'voice' | 'options'>
 >;
 
 export const RPolySynth2 = React.forwardRef(function (
@@ -404,16 +404,36 @@ export const RPolySynth2 = React.forwardRef(function (
   },
   innerRef: React.ForwardedRef<InstrumentLike>
 ) {
+  const proxyVoiceClass = useMemo(() => {
+    class ProxyVoice {
+      private _output: Tone.Volume;
+
+      constructor(options: {}) {
+        console.log('instantiating proxy voice');
+        this._output = new Tone.Volume();
+      }
+
+      connect(...params: Parameters<Tone.ToneAudioNode['connect']>) {
+        this._output.connect(...params);
+      }
+
+      static getDefaults() {
+        return Tone.Synth.getDefaults();
+      }
+    }
+
+    return ProxyVoice;
+  }, []);
+
   const nodeClass: RackableClass<
-    Partial<Tone.PolySynthOptions<Tone.MonoSynth>>,
+    Partial<Tone.PolySynthOptions<Tone.Synth>>,
     InstrumentLike
   > = Tone.PolySynth;
 
   // @todo this function runs twice? but effects run only the second time??
   const instrNode = useRackableNode(
     nodeClass,
-    props,
-    // { ...props, voice: null, options: {} },
+    { ...props, voice: proxyVoiceClass, options: {} },
     innerRef
   );
 
