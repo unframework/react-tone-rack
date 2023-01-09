@@ -385,20 +385,22 @@ export const RLFO = createRackableSource<Partial<Tone.LFOOptions>, Tone.LFO>(
 export const RMonoSynth = createRackableInstrument<
   RecursivePartial<Tone.MonoSynthOptions>
 >(Tone.MonoSynth);
+export const RFMSynth = createRackableInstrument<
+  RecursivePartial<Tone.FMSynthOptions>
+>(Tone.FMSynth);
 export const RReverb = createRackable<Partial<ReverbOptions>>(Tone.Reverb);
 export const RPolySynth = createRackableInstrument<
   Partial<Tone.PolySynthOptions<Tone.MonoSynth>>
 >(Tone.PolySynth);
 
-type RPNodeOptions<MonoVoice> = Partial<
-  Omit<Tone.PolySynthOptions<MonoVoice>, 'voice' | 'options'>
+// any voice-specific options are in child content, so we just use a dummy voice type here
+type RPSOptions = Partial<
+  Omit<Tone.PolySynthOptions<Tone.MonoSynth>, 'voice' | 'options'>
 >;
 
 export const RPolySynth2 = React.forwardRef(function (
-  props: RackableInstrumentProps<RPNodeOptions<Tone.MonoSynth>> & {
-    children?: React.ReactElement;
-    voice: any; // @todo
-    options: any; // @todo
+  props: RackableInstrumentProps<RPSOptions> & {
+    children: React.ReactElement;
   },
   innerRef: React.ForwardedRef<InstrumentLike>
 ) {
@@ -469,13 +471,5 @@ export const RPolySynth2 = React.forwardRef(function (
     };
   }, [instrNode]);
 
-  return (
-    <RackTargetContext.Provider value={instrNode}>
-      {props.children}
-    </RackTargetContext.Provider>
-  );
+  return <>{props.children}</>;
 });
-
-export function createRP<MonoVoice>() {
-  return RPolySynth2;
-}
