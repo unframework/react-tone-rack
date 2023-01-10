@@ -343,13 +343,18 @@ export function createRackableInstrument<
       };
 
       // listen for notes and sync with timeline
-      GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
+      // (if note topic is empty this was likely created for immediate ref instead)
+      if (noteTopic) {
+        GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
+      }
       instrNode.sync();
 
       return () => {
         // unsync and stop listening for notes
         instrNode.unsync();
-        GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
+        if (noteTopic) {
+          GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
+        }
       };
     }, [instrNode]);
 
@@ -552,13 +557,18 @@ export const RPolySynth2 = React.forwardRef(function (
     };
 
     // listen for notes and sync with timeline
-    GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
+    // (if note topic is empty this was likely created for immediate ref instead)
+    if (noteTopic) {
+      GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
+    }
     instrNode.sync();
 
     return () => {
       // unsync and stop listening for notes
       instrNode.unsync();
-      GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
+      if (noteTopic) {
+        GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
+      }
     };
   }, [instrNode]);
 
