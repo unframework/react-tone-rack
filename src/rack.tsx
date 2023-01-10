@@ -408,7 +408,7 @@ interface ProxyVoiceOptions {
 
 class ProxyVoice {
   private _output: Tone.Volume;
-  private _instrument: InstrumentLike | null;
+  private _instrumentPromise: Promise<InstrumentLike>;
 
   refHandler: React.RefCallback<InstrumentLike>;
 
@@ -416,28 +416,27 @@ class ProxyVoice {
     console.log('instantiating proxy voice');
     this._output = new Tone.Volume();
 
-    this._instrument = null;
+    this.refHandler = () => undefined; // stub to prevent init warning
+
+    this._instrumentPromise = new Promise((resolve) => {
+      // set up the stable ref handler callback
+      this.refHandler = (instrument) => {
+        // ignore ref unset
+        if (instrument === null) {
+          return;
+        }
+
+        console.log('got instrument', instrument);
+
+        // initialize from ref value
+        instrument.connect(this._output);
+
+        resolve(instrument);
+      };
+    });
+
     const options = args[0] as ProxyVoiceOptions;
     options.onCreate(this, args[0]);
-
-    // set up the stable ref handler callback
-    this.refHandler = (instrument) => {
-      // ignore ref unset
-      if (instrument === null) {
-        return;
-      }
-
-      console.log('got instrument', instrument);
-
-      if (this._instrument === null) {
-        // initialize from ref value
-        this._instrument = instrument;
-        this._instrument.connect(this._output);
-      } else if (this._instrument !== instrument) {
-        // allow repeated ref calls, but do a safety check that it's the same value
-        throw new Error('already set up with real instrument');
-      }
-    };
   }
 
   connect(...params: Parameters<Tone.ToneAudioNode['connect']>) {
@@ -445,31 +444,33 @@ class ProxyVoice {
   }
 
   triggerAttack(...args: Parameters<Tone.Synth['triggerAttack']>) {
-    if (!this._instrument) {
-      throw new Error('voice did not instantiate');
-    }
-
-    this._instrument.triggerAttack(...args);
+    this._instrumentPromise.then((instrument) =>
+      instrument.triggerAttack(...args)
+    );
     return this;
   }
 
   triggerRelease(...args: Parameters<Tone.Synth['triggerRelease']>) {
-    if (!this._instrument) {
-      throw new Error('voice did not instantiate');
-    }
-
-    this._instrument.triggerRelease(...args);
+    this._instrumentPromise.then((instrument) =>
+      instrument.triggerRelease(...args)
+    );
     return this;
   }
 
   triggerAttackRelease(
     ...args: Parameters<Tone.Synth['triggerAttackRelease']>
   ) {
-    if (!this._instrument) {
-      throw new Error('voice did not instantiate');
-    }
+    this._instrumentPromise.then((instrument) =>
+      instrument.triggerAttackRelease(...args)
+    );
+    return this;
+  }
 
-    this._instrument.triggerAttackRelease(...args);
+  dispose() {
+    console.log('disposing');
+    this._output.dispose();
+    this._instrumentPromise.then((instrument) => instrument.dispose());
+
     return this;
   }
 
@@ -493,7 +494,6 @@ export const RPolySynth2 = React.forwardRef(function (
 
   const proxyOptions: ProxyVoiceOptions = {
     onCreate(instance) {
-      console.log('creat');
       setProxyVoices((prev) => [...prev, instance]);
     },
   };
