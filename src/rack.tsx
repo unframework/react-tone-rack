@@ -1,5 +1,6 @@
 import React, {
   useContext,
+  useState,
   useEffect,
   useRef,
   useMemo,
@@ -402,12 +403,14 @@ type RPSOptions = Partial<
 >;
 
 interface ProxyVoiceOptions {
-  onCreate: (options: {}) => Promise<InstrumentLike>;
+  onCreate: (instance: ProxyVoice, options: {}) => void;
 }
 
 class ProxyVoice {
   private _output: Tone.Volume;
   private _instrument: InstrumentLike | null;
+
+  refHandler: React.RefCallback<InstrumentLike>;
 
   constructor(...args: any[]) {
     console.log('instantiating proxy voice');
@@ -415,10 +418,26 @@ class ProxyVoice {
 
     this._instrument = null;
     const options = args[0] as ProxyVoiceOptions;
-    options.onCreate(args[0]).then((instrument) => {
-      instrument.connect(this._output);
-      this._instrument = instrument;
-    });
+    options.onCreate(this, args[0]);
+
+    // set up the stable ref handler callback
+    this.refHandler = (instrument) => {
+      // ignore ref unset
+      if (instrument === null) {
+        return;
+      }
+
+      console.log('got instrument', instrument);
+
+      if (this._instrument === null) {
+        // initialize from ref value
+        this._instrument = instrument;
+        this._instrument.connect(this._output);
+      } else if (this._instrument !== instrument) {
+        // allow repeated ref calls, but do a safety check that it's the same value
+        throw new Error('already set up with real instrument');
+      }
+    };
   }
 
   connect(...params: Parameters<Tone.ToneAudioNode['connect']>) {
@@ -465,23 +484,26 @@ export const RPolySynth2 = React.forwardRef(function (
   },
   innerRef: React.ForwardedRef<InstrumentLike>
 ) {
+  const [proxyVoices, setProxyVoices] = useState<ProxyVoice[]>([]);
+
   const nodeClass: RackableClass<
     Partial<Tone.PolySynthOptions<Tone.Synth>>,
     InstrumentLike
   > = Tone.PolySynth;
 
-  // @todo this function runs twice? but effects run only the second time??
+  const proxyOptions: ProxyVoiceOptions = {
+    onCreate(instance) {
+      console.log('creat');
+      setProxyVoices((prev) => [...prev, instance]);
+    },
+  };
+
   const instrNode = useRackableNode(
     nodeClass,
     {
       ...props,
       voice: ProxyVoice as unknown as typeof Tone.Synth,
-      options: {
-        onCreate(options: {}) {
-          console.log('creat');
-          return new Promise(() => {});
-        },
-      } as unknown as Tone.SynthOptions,
+      options: proxyOptions as unknown as Tone.SynthOptions,
     },
     innerRef
   );
@@ -540,5 +562,11 @@ export const RPolySynth2 = React.forwardRef(function (
     };
   }, [instrNode]);
 
-  return <>{props.children}</>;
+  return (
+    <>
+      {proxyVoices.map((instance) =>
+        React.cloneElement(props.children, { ref: instance.refHandler })
+      )}
+    </>
+  );
 });
