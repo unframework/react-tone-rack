@@ -564,8 +564,11 @@ export const RPolySynth2 = React.forwardRef(function (
 
   return (
     <>
-      {proxyVoices.map((instance) =>
-        React.cloneElement(props.children, { ref: instance.refHandler })
+      {proxyVoices.map((instance, index) =>
+        React.cloneElement(props.children, {
+          key: index,
+          ref: instance.refHandler,
+        })
       )}
     </>
   );
