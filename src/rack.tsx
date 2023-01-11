@@ -409,9 +409,6 @@ export const RSynth = createRackableInstrument<
   RecursivePartial<Tone.SynthOptions>
 >(Tone.Synth);
 export const RReverb = createRackable<Partial<ReverbOptions>>(Tone.Reverb);
-export const RPolySynth = createRackableInstrument<
-  Partial<Tone.PolySynthOptions<Tone.MonoSynth>>
->(Tone.PolySynth);
 
 // any voice-specific options are in child content, so we just use a dummy voice type here
 type RPSOptions = Partial<
