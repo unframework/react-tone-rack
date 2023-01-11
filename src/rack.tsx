@@ -416,7 +416,7 @@ type RPSOptions = Partial<
 >;
 
 interface ProxyVoiceOptions {
-  onCreate: (instance: ProxyVoice, options: {}) => void;
+  onCreate: (instance: ProxyVoice) => void;
 }
 
 class ProxyVoice {
@@ -424,6 +424,9 @@ class ProxyVoice {
   private _instrumentPromise: Promise<InstrumentLike>;
 
   refHandler: React.RefCallback<InstrumentLike>;
+  constructorOptions: {
+    onsilence: (instrument: unknown) => void;
+  };
 
   constructor(...args: any[]) {
     console.log('instantiating proxy voice');
@@ -448,8 +451,16 @@ class ProxyVoice {
       };
     });
 
+    // get the PolySynth-specific options to pass along to the constructor
+    // @todo also preserve the passed-in context?
+    const { onsilence } = args[0];
+    this.constructorOptions = {
+      onsilence,
+    };
+
+    // notify our React wrapper that a new voice instance is needed
     const options = args[0] as ProxyVoiceOptions;
-    options.onCreate(this, args[0]);
+    options.onCreate(this);
   }
 
   connect(...params: Parameters<Tone.ToneAudioNode['connect']>) {
@@ -592,6 +603,7 @@ export const RPolySynth2 = React.forwardRef(function (
         React.cloneElement(props.children, {
           key: index,
           ref: instance.refHandler,
+          ...instance.constructorOptions, // @todo preserve original onsilence if any? or at least complain
         })
       )}
     </>
