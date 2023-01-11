@@ -405,6 +405,9 @@ export const RMonoSynth = createRackableInstrument<
 export const RFMSynth = createRackableInstrument<
   RecursivePartial<Tone.FMSynthOptions>
 >(Tone.FMSynth);
+export const RSynth = createRackableInstrument<
+  RecursivePartial<Tone.SynthOptions>
+>(Tone.Synth);
 export const RReverb = createRackable<Partial<ReverbOptions>>(Tone.Reverb);
 export const RPolySynth = createRackableInstrument<
   Partial<Tone.PolySynthOptions<Tone.MonoSynth>>
