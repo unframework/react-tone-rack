@@ -234,6 +234,7 @@ export function createRackableSource<
   return React.forwardRef(componentFunc);
 }
 
+// @todo instead of one emitter use a topic map - emitters are not meant to have many listeners
 const GLOBAL_TRANSPORT_EVENTS = new EventEmitter();
 interface TransportNoteEvent {
   time: number;
@@ -245,6 +246,7 @@ export type RackableInstrumentProps<NodeOptions> =
     notes?: string;
     duration?: string | number;
     velocity?: number;
+    synced?: boolean;
   };
 
 function parseEventDuration<DefaultType>(
@@ -312,6 +314,10 @@ export function createRackableInstrument<
     // listen for note events coming down from the transport
     useEffect(() => {
       const noteTopic = firstNoteTopicRef.current;
+      if (!noteTopic) {
+        return;
+      }
+
       const noteListener = ({ time, value }: TransportNoteEvent) => {
         if (time === undefined) {
           return;
@@ -342,21 +348,23 @@ export function createRackableInstrument<
         }
       };
 
-      // listen for notes and sync with timeline
+      // listen for notes
       // (if note topic is empty this was likely created for immediate ref instead)
-      if (noteTopic) {
-        GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
-      }
-      instrNode.sync();
-
+      GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
       return () => {
-        // unsync and stop listening for notes
-        instrNode.unsync();
-        if (noteTopic) {
-          GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
-        }
+        GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
       };
     }, [instrNode]);
+
+    // sync to transport if needed
+    useEffect(() => {
+      if (props.synced) {
+        instrNode.sync();
+        return () => {
+          instrNode.unsync();
+        };
+      }
+    }, [instrNode, props.synced]);
 
     return (
       <RackTargetContext.Provider value={instrNode}>
@@ -526,6 +534,10 @@ export const RPolySynth2 = React.forwardRef(function (
   // listen for note events coming down from the transport
   useEffect(() => {
     const noteTopic = firstNoteTopicRef.current;
+    if (!noteTopic) {
+      return;
+    }
+
     const noteListener = ({ time, value }: TransportNoteEvent) => {
       if (time === undefined) {
         return;
@@ -556,21 +568,23 @@ export const RPolySynth2 = React.forwardRef(function (
       }
     };
 
-    // listen for notes and sync with timeline
+    // listen for notes
     // (if note topic is empty this was likely created for immediate ref instead)
-    if (noteTopic) {
-      GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
-    }
-    instrNode.sync();
-
+    GLOBAL_TRANSPORT_EVENTS.on(`note:${noteTopic}`, noteListener);
     return () => {
-      // unsync and stop listening for notes
-      instrNode.unsync();
-      if (noteTopic) {
-        GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
-      }
+      GLOBAL_TRANSPORT_EVENTS.off(`note:${noteTopic}`, noteListener);
     };
   }, [instrNode]);
+
+  // sync to transport if needed
+  useEffect(() => {
+    if (props.synced) {
+      instrNode.sync();
+      return () => {
+        instrNode.unsync();
+      };
+    }
+  }, [instrNode, props.synced]);
 
   return (
     <>
